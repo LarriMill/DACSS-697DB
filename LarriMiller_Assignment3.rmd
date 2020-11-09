@@ -1,0 +1,167 @@
+---
+title: "LarriMiller_Assignment3"
+author: "Larri Miller"
+date: "due 11/06/2020"
+output: html_document
+---
+
+# Digital Behavioral Data Assignment 3
+
+Creating token to access Twitter API
+``` {r}
+library(rtweet)
+mytoken <- create_token(
+  app = "R_Workshop_DB",
+  consumer_key = "4EL1tCE2DG4OdtLrynOGnWsHi",
+  consumer_secret = "57Urg78Zkpoqj4M6ZPL8TOXp7X4o0IM4Thh2FzmUGrm0TmgviD",
+  access_token = "17917334-QzAR7yu42izruhOLsQEzVbHOVwXYHj0BrhMkqhJne",
+  access_secret = "fvNA7z3Sb1nVfmqCIEJvDxkIWyvGlkbe6xXgscnXFlvzj")
+
+```
+
+Step 1: Collect Tweets containing #election2020 & including retweets
+``` {r}
+tweets <- search_tweets("#election2020", include_retweets = TRUE, n = 1000, retryonratelimit = TRUE,  token = mytoken)
+```
+
+Even though it is not required, I want to save my data frame as a CSV. This way I can reuse the same data frame without having to finish the assignment all in one go.
+``` {r}
+save_as_csv(tweets, "tweets_vote.csv")
+```
+
+Opening the saved CSV file 
+``` {r}
+tweets <- read.csv("tweets_vote.csv")
+```
+
+Step 2: Create a network from tweets
+```{r}
+library(devtools) #you would install this library as well
+devtools::install_github("JohnCoene/twinetverse")
+
+library(graphTweets)
+library(twinetverse)
+
+extractrt <- function(tweets){
+  rt <- tweets %>% 
+    gt_edges(screen_name, retweet_screen_name) %>% # get edges
+    gt_nodes() %>% # get nodes
+    gt_collect() # collect
+  
+  return(rt)
+}
+
+rtnet <- extractrt(tweets)
+
+extractmt <- function(tweets){
+  
+  mt <- tweets %>% 
+    gt_edges(screen_name, mentions_screen_name) %>% # get edges
+    gt_nodes() %>% # get nodes
+    gt_collect() # collect
+  
+  return(mt)
+}
+
+mtnet <- extractmt(tweets)
+
+#define a function called nodes to extract node information from a network object
+
+nodes <- function(net){
+  
+  c(edges, nodes) %<-% net
+  nodes$id <- as.factor(nodes$nodes) 
+  nodes$size <- nodes$n 
+  nodes <- nodes2sg(nodes)
+  nodes <- nodes[,2:5]
+  
+  return(nodes)
+}
+
+#define a function called edges to extract edge information from a network object
+
+edges <- function(net){
+  
+  c(edges, nodes) %<-% net
+  edges$id <- seq(1, nrow(edges))
+  edges <- edges2sg(edges)
+  
+  return(edges)
+}
+
+#apply the two self-defined functions
+rtnet_nodes <- nodes(rtnet)
+rtnet_edges <- edges(rtnet)
+
+mtnet_nodes <- nodes(mtnet)
+mtnet_edges <- edges(mtnet)
+```
+
+Looking at the first two retweets on the edge list
+``` {r}
+library(DT)
+datatable(rtnet_edges, options = list(pageLength = 2))
+```
+
+Step 3: List top users by a variety of network metrics -- convert to igraph
+``` {r}
+library(igraph)
+# use rtnet_edges as the edgelist and rtnet_nodes as the node list. Set the network type as directed
+
+rt <- graph_from_data_frame(d=rtnet_edges, vertices=rtnet_nodes, directed=T) 
+
+# see edge weight by copying the values from the size column in rtnet_edges
+
+rt <- set_edge_attr(rt, "weight", value= rtnet_edges$size)
+
+# we do the same for the mention network
+
+mt <- graph_from_data_frame(d=mtnet_edges, vertices=mtnet_nodes, directed=T) 
+mt <- set_edge_attr(mt, "weight", value= mtnet_edges$size)
+```
+
+counting how many nodes & edges in rt
+``` {r}
+vcount(rt) #nodes
+ecount(rt) #edges
+```
+
+checking top 5 most retweeted users
+``` {r}
+indegree_rt <- sort(degree(rt, mode = "in"), decreasing = TRUE)
+indegree_rt[1:6]
+```
+
+checking top 5 users who are most active in retweeting others
+``` {r}
+outdegree_rt <- sort(degree(rt, mode = "out"), decreasing = TRUE)
+outdegree_rt[1:5]
+```
+
+checking top 5 users by betweenness centrality
+``` {r}
+bt <- sort(betweenness(rt, directed=T, weights=NA), decreasing = TRUE)
+bt[1:5]
+```
+
+Step 4: Network Visualization
+``` {r}
+library(visNetwork)
+library(scales)
+
+# set node size by betweenness centrality
+V(rt)$size <- bt
+
+# set node color by the cluster a node belongs to 
+wc <- cluster_walktrap(rt)
+V(rt)$color <- membership(wc)
+
+# creating the 2core kcore
+kcore <- coreness(rt, mode = "all")
+twocore <- induced_subgraph(rt, kcore >= 2)
+
+# visualize!
+visIgraph(twocore, idToLabel = TRUE, layout = "layout_nicely") %>%
+  visOptions(highlightNearest = TRUE, nodesIdSelection = TRUE)
+
+```
