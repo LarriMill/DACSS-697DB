@@ -16,11 +16,11 @@ library(quanteda)
 
 # creating token
 mytoken <- create_token(
-  app = "R_Workshop_DB",
-  consumer_key = "4EL1tCE2DG4OdtLrynOGnWsHi",
-  consumer_secret = "57Urg78Zkpoqj4M6ZPL8TOXp7X4o0IM4Thh2FzmUGrm0TmgviD",
-  access_token = "17917334-QzAR7yu42izruhOLsQEzVbHOVwXYHj0BrhMkqhJne",
-  access_secret = "fvNA7z3Sb1nVfmqCIEJvDxkIWyvGlkbe6xXgscnXFlvzj")
+  app = "",
+  consumer_key = "",
+  consumer_secret = "",
+  access_token = "",
+  access_secret = "")
 
 # task 1
 tweets1 <- get_timeline("JoeBiden", n = 500, token = mytoken) 
